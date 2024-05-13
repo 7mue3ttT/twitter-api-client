@@ -10,6 +10,7 @@ install_requires = [
     'orjson',
     'm3u8',
     'websockets',
+    'requests',
     'uvloop; platform_system != "Windows"',
 ]
 

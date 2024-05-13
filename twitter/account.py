@@ -4,6 +4,7 @@ import logging.config
 import math
 import mimetypes
 import platform
+import requests
 from copy import deepcopy
 from datetime import datetime
 from string import ascii_letters
@@ -16,6 +17,10 @@ from tqdm.asyncio import tqdm_asyncio
 from .constants import *
 from .login import login
 from .util import *
+
+LOG = logging.getLogger(__name__)
+
+RE_AUTHENTICITY_TOKEN = re.compile(r'data-csrf-token="(?P<token>[a-z0-9]{40})".*')
 
 try:
     if get_ipython().__class__.__name__ == 'ZMQInteractiveShell':
@@ -835,3 +840,101 @@ class Account:
         """ Save cookies to file """
         cookies = self.session.cookies
         Path(f'{fname or cookies.get("username")}.cookies').write_bytes(orjson.dumps(dict(cookies)))
+
+    def get_user_tweet_activity_metrics(self, screen_name, download_dir: Path = None):
+        """
+        params: screen_name, 账号的screen_name; download_dir, 保存路径
+        return: 下载的文件的路径.
+        """
+        # get the tweet activity metrics for the last 30 days
+        end_time = round(time.time() * 1000)
+        start_time = end_time - 30 * 24 * 60 * 60 * 1000
+        post_url = f'https://analytics.twitter.com/user/{screen_name}/tweets/export.json'
+        get_url = f'https://analytics.twitter.com/user/{screen_name}/tweets/bundle'
+
+        LOG.info(f"下载数据,账号: {screen_name}, 开始时间: {start_time}, 结束时间: {end_time}")
+
+        headers_post = {
+            'accept': 'application/json, text/javascript, */*; q=0.01',
+            'accept-encoding': 'gzip, deflate, br',
+            'accept-language': 'en-US,en;q=0.9',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
+            'cookie': get_headers(self.session)['cookie'],
+        }
+
+        headers_get = {
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            'accept-encoding': 'gzip, deflate, br',
+            'accept-language': 'en-US,en;q=0.9',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
+            'cookie': get_headers(self.session)['cookie'],
+        }
+
+        requests.post(
+            post_url,
+            params={"start_time": start_time, "end_time": end_time, "lang": "en", "export_type": "by_tweet"},
+            headers=headers_post
+        )
+
+        # it takes some time for the csv to be constructed at the server side, here we sleep 10 seconds
+        time.sleep(10)
+
+        response = requests.get(
+            get_url,
+            params={"start_time": start_time, "end_time": end_time, "lang": "en", "export_type": "by_tweet"},
+            headers=headers_get
+        )
+
+        if "content-disposition" in response.headers:
+            content_disposition = response.headers["content-disposition"]
+            filename = content_disposition.split("filename=")[1]
+            LOG.info(f"download activity metrics for {screen_name}")
+            file_path = Path(download_dir) / f"{filename}"
+            with open(file_path, mode="wb") as file:
+                file.write(response.content)
+            return file_path
+        else:
+            LOG.error(f"no activity metrics found for {screen_name}")
+
+    def enable_user_tweet_activity_metrics(self, screen_name):
+        headers_get = {
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'accept-encoding': 'gzip, deflate, br',
+            'accept-language': 'en-US,en;q=0.9',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
+            'cookie': get_headers(self.session)['cookie'],
+        }
+
+        url_to_get_authenticity_token = "https://analytics.twitter.com/about"
+        r = requests.get(
+            url_to_get_authenticity_token,
+            headers=headers_get
+        )
+
+        try:
+            m = RE_AUTHENTICITY_TOKEN.search(r.text)
+            authenticity_token = m.group('token')
+            LOG.info(f'authenticity_token obtained is {authenticity_token}')
+        except AttributeError:
+            LOG.warning(f"activity metrics for screen name {screen_name} may have already enabled, now return")
+            return
+
+        url = f'https://analytics.twitter.com/user/{screen_name}/new'
+        LOG.info(f'enable tweet activity metrics for screen name {screen_name}')
+
+        headers_post = {
+            'accept': 'application/json, text/javascript, */*; q=0.01',
+            'accept-encoding': 'gzip, deflate, br',
+            'accept-language': 'en-US,en;q=0.9',
+            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
+            'cookie': get_headers(self.session)['cookie'],
+        }
+
+        payloads = {'authenticity_token': authenticity_token}
+        result = requests.post(
+            url,
+            data=payloads,
+            headers=headers_post,
+        )
+        LOG.info(result.text)
+        LOG.info(f'status code for activity metrics enabling api call is {result.status_code}')

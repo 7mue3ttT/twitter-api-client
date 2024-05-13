@@ -126,7 +126,21 @@ def solve_confirmation_challenge(client: Client, **kwargs) -> Client:
         })
 
 
-def execute_login_flow(client: Client, **kwargs) -> Client | None:
+def solve_two_factor_auth_challenge(client: Client, totp_code=None, **kwargs) -> Client:
+    return update_token(client, 'flow_token', 'https://api.twitter.com/1.1/onboarding/task.json', json={
+        "flow_token": client.cookies.get('flow_token'),
+        "subtask_inputs": [
+            {
+                "subtask_id": "LoginTwoFactorAuthChallenge",
+                "enter_text": {
+                    "text": totp_code,
+                    "link": "next_link"
+                }
+            }]
+    })
+
+
+def execute_login_flow(client: Client, totp_code=None, **kwargs) -> Client | None:
     client = init_guest_token(client)
     for fn in [flow_start, flow_instrumentation, flow_username, flow_password, flow_duplication_check]:
         client = fn(client)
@@ -143,10 +157,15 @@ def execute_login_flow(client: Client, **kwargs) -> Client | None:
                   f' email confirmation challenges, add a Proton Mail account in your account settings')
             return
         client = solve_confirmation_challenge(client, **kwargs)
+
+    print(f'client cookie is {client.cookies}')
+    if client.cookies.get('two_factor') == 'true':
+        client = solve_two_factor_auth_challenge(client, totp_code)
+
     return client
 
 
-def login(email: str, username: str, password: str, **kwargs) -> Client:
+def login(email: str, username: str, password: str, totp_code=None, **kwargs) -> Client:
     client = Client(
         cookies={
             "email": email,
@@ -164,7 +183,7 @@ def login(email: str, username: str, password: str, **kwargs) -> Client:
         },
         follow_redirects=True
     )
-    client = execute_login_flow(client, **kwargs)
+    client = execute_login_flow(client, totp_code, **kwargs)
     if not client or client.cookies.get('flow_errors') == 'true':
         raise Exception(f'[{RED}error{RESET}] {BOLD}{username}{RESET} login failed')
     return client
