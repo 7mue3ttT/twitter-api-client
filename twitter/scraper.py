@@ -32,14 +32,14 @@ if platform.system() != 'Windows':
 
 
 class Scraper:
-    def __init__(self, email: str = None, username: str = None, password: str = None, session: Client = None, **kwargs):
+    def __init__(self, email: str = None, username: str = None, password: str = None, totp_code: str = None, session: Client = None, **kwargs):
         self.save = kwargs.get('save', True)
         self.debug = kwargs.get('debug', 0)
         self.pbar = kwargs.get('pbar', True)
         self.out = Path(kwargs.get('out', 'data'))
         self.guest = False
         self.logger = self._init_logger(**kwargs)
-        self.session = self._validate_session(email, username, password, session, **kwargs)
+        self.session = self._validate_session(email, username, password, totp_code, session, **kwargs)
         self.rate_limits = {}
 
     def users(self, screen_names: list[str], **kwargs) -> list[dict]:
@@ -860,11 +860,11 @@ class Scraper:
             return logging.getLogger(logger_name)
 
     def _validate_session(self, *args, **kwargs):
-        email, username, password, session = args
+        email, username, password, totp_code, session = args
 
         # validate credentials
         if all((email, username, password)):
-            return login(email, username, password, **kwargs)
+            return login(email, username, password, totp_code, **kwargs)
 
         # invalid credentials, try validating session
         if session and all(session.cookies.get(c) for c in {'ct0', 'auth_token'}):

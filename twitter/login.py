@@ -159,7 +159,7 @@ def execute_login_flow(client: Client, totp_code=None, **kwargs) -> Client | Non
         client = solve_confirmation_challenge(client, **kwargs)
 
     print(f'client cookie is {client.cookies}')
-    if client.cookies.get('two_factor') == 'true':
+    if totp_code is not None:
         client = solve_two_factor_auth_challenge(client, totp_code)
 
     return client

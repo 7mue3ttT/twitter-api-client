@@ -39,14 +39,14 @@ if platform.system() != 'Windows':
 
 class Account:
 
-    def __init__(self, email: str = None, username: str = None, password: str = None, session: Client = None, **kwargs):
+    def __init__(self, email: str = None, username: str = None, password: str = None, totp_code: str = None, session: Client = None, **kwargs):
         self.save = kwargs.get('save', True)
         self.debug = kwargs.get('debug', 0)
         self.gql_api = 'https://twitter.com/i/api/graphql'
         self.v1_api = 'https://api.twitter.com/1.1'
         self.v2_api = 'https://twitter.com/i/api/2'
         self.logger = self._init_logger(**kwargs)
-        self.session = self._validate_session(email, username, password, session, **kwargs)
+        self.session = self._validate_session(email, username, password, totp_code, session, **kwargs)
         self.rate_limits = {}
 
     def gql(self, method: str, operation: tuple, variables: dict, features: dict = Operation.default_features) -> dict:
@@ -621,11 +621,11 @@ class Account:
 
     @staticmethod
     def _validate_session(*args, **kwargs):
-        email, username, password, session = args
+        email, username, password, totp_code, session = args
 
         # validate credentials
         if all((email, username, password)):
-            session = login(email, username, password, **kwargs)
+            session = login(email, username, password, totp_code, **kwargs)
             session._init_with_cookies = False
             return session
 
