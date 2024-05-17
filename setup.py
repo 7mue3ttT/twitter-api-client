@@ -22,7 +22,6 @@ setup(
     version=about['__version__'],
     author=about['__author__'],
     description=about['__description__'],
-    packages=find_packages(include=['twitterkit', 'twitterkit.*']),
     license=about['__license__'],
     long_description=dedent('''
 
@@ -470,7 +469,7 @@ setup(
     url='https://github.com/trevorhobenshield/twitter-api-client',
     install_requires=install_requires,
     keywords='twitter api client async search automation bot scrape',
-    packages=find_packages(),
+    packages=find_packages(include=['twitterkit', 'twitterkit.*']),
     include_package_data=True,
     classifiers=[
         'Environment :: Web Environment',
