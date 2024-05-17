@@ -469,7 +469,7 @@ setup(
     url='https://github.com/trevorhobenshield/twitter-api-client',
     install_requires=install_requires,
     keywords='twitter api client async search automation bot scrape',
-    packages=find_packages(include=['twitterkit', 'twitterkit.*']),
+    packages=find_packages(),
     include_package_data=True,
     classifiers=[
         'Environment :: Web Environment',
