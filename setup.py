@@ -1,6 +1,13 @@
 from textwrap import dedent
 from setuptools import find_packages, setup
 from pathlib import Path
+import os
+
+default_module = 'twitterkit'
+module_to_install = os.getenv('MODULE_TO_INSTALL', default_module)
+
+# Packages to include based on the selected module
+packages = find_packages(include=[module_to_install, f'{module_to_install}.*'])
 
 install_requires = [
     'aiofiles',
